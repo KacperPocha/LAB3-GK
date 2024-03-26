@@ -1,0 +1,245 @@
+<!DOCTYPE html>
+<html>
+<head>
+    <meta charset="UTF-8" />
+    <title>Scene Graph</title>
+</head>
+<body onload="init()" style="background-color: #eeeeee">
+    <h3>Scene Graph</h3>
+
+    <noscript>
+        <p>
+            <b style="color: red">Error: This page requires JavaScript, but it is not available.</b>
+        </p>
+    </noscript>
+
+    <p id="message">
+        <label>
+            <input type="checkbox" id="animateCheck" onchange="doAnimationCheckbox()" />
+            <b>Run the Animation</b>
+        </label>
+    </p>
+
+    <div style="float: left; border: 2px solid black">
+        <canvas id="thecanvas" width="800" height="600" style="display: block"></canvas>
+    </div>
+
+    <script>
+        var canvas; // The canvas that is used as the drawing surface
+        var graphics; // The 2D graphics context for drawing on the canvas.
+
+        var X_LEFT = -4; // The xy limits for the coordinate system.
+        var X_RIGHT = 4;
+        var Y_BOTTOM = -3;
+        var Y_TOP = 3;
+
+        var BACKGROUND = "white"; // The display is filled with this color before the scene is drawn.
+
+        var pixelSize; // The size of one pixel, in the transformed coordinates.
+
+        var frameNumber = 0; // Current frame number. goes up by one in each frame.
+
+        var running = false; // This is set to true when animation is running
+
+        var compoundObjects = []; // Array to store CompoundObject instances
+
+        // Define classes for different shapes...
+
+        class Triangle {
+            constructor(x, y, size, color) {
+                this.x = x;
+                this.y = y;
+                this.size = size;
+                this.color = color;
+            }
+
+            draw() {
+                graphics.beginPath();
+                graphics.moveTo(this.x + 1.25 * this.size, this.y);
+                graphics.lineTo(this.x + 2.0 * this.size, this.y - 2.9 * this.size);
+                graphics.lineTo(this.x + 0.75 * this.size, this.y - 2.9 * this.size);
+                graphics.fillStyle = this.color;
+                graphics.fill();
+            }
+        }
+
+        class RedBar {
+            constructor(x, y, width, height, angle) {
+                this.x = x;
+                this.y = y;
+                this.width = width;
+                this.height = height;
+                this.angle = angle;
+            }
+
+            draw() {
+                graphics.save();
+                graphics.fillStyle = "red";
+                graphics.translate(this.x, this.y);
+                graphics.rotate((this.angle * Math.PI) / 180);
+                graphics.fillRect(-this.width / 2, -this.height / 2, this.width, this.height);
+                graphics.restore();
+            }
+        }
+
+        class Octagon {
+            constructor(x, y, size, angle) {
+                this.x = x;
+                this.y = y;
+                this.size = size;
+                this.angle = angle;
+            }
+
+            draw() {
+                graphics.save();
+                graphics.translate(this.x, this.y);
+                graphics.rotate((this.angle * Math.PI) / 180);
+                graphics.beginPath();
+                var startAngle = Math.PI / 8;
+                var numSides = 8;
+                for (let i = 0; i <= numSides; i++) {
+                    var currAngle = startAngle + (i * 2 * Math.PI) / numSides;
+                    var dx = this.size * Math.cos(currAngle);
+                    var dy = this.size * Math.sin(currAngle);
+                    if (i === 0) graphics.moveTo(dx, dy);
+                    else graphics.lineTo(dx, dy);
+                }
+                graphics.closePath();
+                graphics.fillStyle = "red";
+                graphics.fill();
+                graphics.restore();
+            }
+        }
+
+        // Define a compound object to represent a group of shapes
+        class CompoundObject {
+            constructor() {
+                this.objects = [];
+            }
+
+            add(object) {
+                this.objects.push(object);
+            }
+
+            draw() {
+                for (let obj of this.objects) {
+                    obj.draw();
+                }
+            }
+
+            update() {
+                // Update rotation for each octagon
+                for (let obj of this.objects) {
+                    if (obj instanceof Octagon) {
+                        obj.angle += 1; // Increment rotation angle
+                    }
+                }
+            }
+        }
+
+        // Draw one frame of the animation
+        function draw() {
+            graphics.save();
+            graphics.fillStyle = BACKGROUND;
+            graphics.fillRect(0, 0, canvas.width, canvas.height);
+            graphics.fillStyle = "black";
+            applyLimits(graphics, X_LEFT, X_RIGHT, Y_TOP, Y_BOTTOM, false);
+            graphics.lineWidth = pixelSize;
+
+            // Draw all CompoundObjects
+            for (let obj of compoundObjects) {
+                obj.draw();
+            }
+
+            graphics.restore();
+        }
+
+        // Apply a coordinate transformation to the graphics context
+        function applyLimits(g, xleft, xright, ytop, ybottom, preserveAspect) {
+            var width = canvas.width;
+            var height = canvas.height;
+            if (preserveAspect) {
+                var displayAspect = Math.abs(height / width);
+                var requestedAspect = Math.abs((ybottom - ytop) / (xright - xleft));
+                var excess;
+                if (displayAspect > requestedAspect) {
+                    excess = (ybottom - ytop) * (displayAspect / requestedAspect - 1);
+                    ybottom += excess / 2;
+                    ytop -= excess / 2;
+                } else if (displayAspect < requestedAspect) {
+                    excess = (xright - xleft) * (requestedAspect / displayAspect - 1);
+                    xright += excess / 2;
+                    xleft -= excess / 2;
+                }
+            }
+            var pixelWidth = Math.abs((xright - xleft) / width);
+            var pixelHeight = Math.abs((ybottom - ytop) / height);
+            pixelSize = Math.min(pixelWidth, pixelHeight);
+            g.scale(width / (xright - xleft), height / (ybottom - ytop));
+            g.translate(-xleft, -ytop);
+        }
+
+        // Draw the entire scene
+        function drawWorld() {
+            // Create CompoundObjects and store them in the array
+            var wiatrak1 = new CompoundObject();
+            wiatrak1.add(new Triangle(-0.3, -0.6, 0.8, "blue"));
+            wiatrak1.add(new RedBar(0.6, -0.7, 3, 0.2, -20));
+            wiatrak1.add(new Octagon(-1, -0.1, 0.7, -20));
+            wiatrak1.add(new Octagon(2.5, -1.4, 0.7, 0.7, -20));
+            compoundObjects.push(wiatrak1);
+
+            var wiatrak2 = new CompoundObject();
+            wiatrak2.add(new Triangle(-2.9, 1.8, 0.5, "purple"));
+            wiatrak2.add(new RedBar(-2.1, 1.7, 2.6, 0.2, -20));
+            wiatrak2.add(new Octagon(1, 2, 0.5, -20));
+            wiatrak2.add(new Octagon(3.2, 1.2, 0.5, -20));
+            compoundObjects.push(wiatrak2);
+
+            var wiatrak3 = new CompoundObject();
+            wiatrak3.add(new Triangle(1.5, 1.7, 0.4, "green"));
+            wiatrak3.add(new RedBar(2.1, 1.6, 1.9, 0.2, -20));
+            wiatrak3.add(new Octagon(-3.5, 2.2, 0.5, -20));
+            wiatrak3.add(new Octagon(-0.8, 1.2, 0.5, -20));
+            compoundObjects.push(wiatrak3);
+        }
+
+        // Animation framework
+        function frame() {
+            if (running) {
+                updateFrame();
+                draw();
+                requestAnimationFrame(frame);
+            }
+        }
+
+        // Function to update animation frame
+        function updateFrame() {
+            for (let obj of compoundObjects) {
+                obj.update(); // Redraw the world to update the rotation of the octagons
+            }
+        }
+
+        // Function to handle animation checkbox
+        function doAnimationCheckbox() {
+            running = document.getElementById("animateCheck").checked;
+            if (running) {
+                requestAnimationFrame(frame);
+            }
+        }
+
+        // Initialization
+        function init() {
+            canvas = document.getElementById("thecanvas");
+            if (!canvas.getContext) {
+                document.getElementById("message").innerHTML = "ERROR: Canvas not supported";
+                return;
+            }
+            graphics = canvas.getContext("2d");
+            document.getElementById("animateCheck").checked = false;
+            drawWorld(); // Draw the initial scene
+            draw(); // Initial drawing
+        }
+    </script>
+</body>
+</html>
